@@ -1,0 +1,27 @@
+1. Find the libs being used by ping
+	- ldd /usr/bin/ping
+
+2. Find the func calls being made	
+	- nm -uD /usr/bin/ping
+
+
+// misc
+gautam@biggie:/opt/linux$ nm -uD /usr/bin/ping
+                 U abort@GLIBC_2.2.5
+                 U __assert_fail@GLIBC_2.2.5
+                 U bind@GLIBC_2.2.5
+                 U cap_free
+                 U cap_get_flag
+                 U cap_get_proc
+                 U cap_init
+                 U cap_set_flag
+                 U cap_set_proc
+
+
+// studying the src code of ping in iputils
+
+1. enable CAP_NET_RAW capability
+2. Open a dgram/raw socket with protocol IPPROTO_ICMP
+3. disable capability raw
+4. set QOS params
+5. Send ICMP echo request and parse reply
