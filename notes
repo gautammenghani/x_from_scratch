@@ -25,3 +25,8 @@ gautam@biggie:/opt/linux$ nm -uD /usr/bin/ping
 3. disable capability raw
 4. set QOS params
 5. Send ICMP echo request and parse reply
+
+
+// Use of SOCK_RAW vs SOCK_DGRAM
+Debian/ubuntu use SOCK_RAW
+Fedora uses SOCK_DGRAM
