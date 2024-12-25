@@ -26,7 +26,28 @@ gautam@biggie:/opt/linux$ nm -uD /usr/bin/ping
 4. set QOS params
 5. Send ICMP echo request and parse reply
 
+//seq
+1. getaddrinfo
+2. ping4_run
+    - inet_aton
+    - probe_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    - connect() to dst
+    - getsockname of src
+    - setsockopt- 2 times
+    - some setup- needed?
+    - main_loop
+        - pinger : compose and transmit ICMP echo request packet
+            - call ping4_send_probe
+                - sendto()
+        - recvmsg()
+        - ping4_parse_reply
+        - finish
+
 
 // Use of SOCK_RAW vs SOCK_DGRAM
 Debian/ubuntu use SOCK_RAW
 Fedora uses SOCK_DGRAM
+
+// To EXPLORE
+1. what is network byte order?
+2. on ubuntu, why does gdb need sudo?

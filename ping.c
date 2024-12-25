@@ -8,20 +8,26 @@
 #include <sys/capability.h>
 #include <sys/types.h>
 #include <netdb.h>
+#include "ping.h"
 
 #define getaddrinfo_flags (AI_CANONNAME)
 
-int create_socket() {
-	int fd;
+int run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai, socket_st *sock)
+{
+	return 0;
+}
 
-	fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+int create_socket(struct ping_rts *rts, socket_st *sock, int family, int socktype, int protocol)
+{
+	sock->fd = socket(family, socktype, protocol);
 
-	if (fd == -1) {
+	if (sock->fd == -1) {
 		printf("err: %s\n", strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+	sock->socktype = socktype;
 
-	return fd;
+	return 0;
 }
 
 void enable_cap_raw(cap_value_t cap, cap_flag_value_t status) {
@@ -51,11 +57,32 @@ int main(int argc, char **argv) {
 	int fd, ret;
 	struct addrinfo *result;
 	char *target;
+	socket_st sock = {.fd = -1};
 	struct addrinfo hints = {
 		.ai_family = AF_INET,
 		.ai_protocol = IPPROTO_UDP,
 		.ai_socktype = SOCK_DGRAM,
 		.ai_flags = getaddrinfo_flags
+	};
+	static struct ping_rts rts = {
+		.interval = 1000,
+		.preload = 1,
+		.lingertime = MAXWAIT * 1000,
+		.confirm_flag = MSG_CONFIRM,
+		.tmin = LONG_MAX,
+		.pipesize = -1,
+		.datalen = DEFDATALEN,
+		.ident = -1,
+		.screen_width = INT_MAX,
+#ifdef HAVE_LIBCAP
+		.cap_raw = CAP_NET_RAW,
+		.cap_admin = CAP_NET_ADMIN,
+#endif
+		.pmtudisc = -1,
+		.source.sin_family = AF_INET,
+		.source6.sin6_family = AF_INET6,
+		.ni.query = -1,
+		.ni.subject_type = -1,
 	};
 
 	target = argv[1];
@@ -64,12 +91,16 @@ int main(int argc, char **argv) {
 	//enable_cap_raw(CAP_NET_RAW, 1);
 
 	/* 2. Create a socket with IPPROTO_ICMP protocol  */
-	fd = create_socket();
+	if (create_socket(&rts, &sock, AF_INET, SOCK_RAW, IPPROTO_ICMP)) {
+		printf("error : %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
 
 	ret = getaddrinfo(target, NULL, &hints, &result);
 	if (ret)
 		printf("error : %s\n", strerror(errno));
 
+	ret = run(&rts, argc, argv, result, &sock);
 	close(fd);
 
 	return 0;
