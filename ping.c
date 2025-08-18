@@ -1,107 +1,85 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <sys/capability.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <stdlib.h>
+#include <string.h>
 #include <netdb.h>
-#include "ping.h"
+#include <linux/icmp.h>
 
-#define getaddrinfo_flags (AI_CANONNAME)
+struct pkt {
+	struct icmphdr hdr;
+	char msg[64];
+};
 
-int run(struct ping_rts *rts, int argc, char **argv, struct addrinfo *ai, socket_st *sock)
+static long get_cksum(int count, struct pkg *p)
 {
-	return 0;
+	
+	/* Compute Internet Checksum for "count" bytes
+	*         beginning at location "addr".
+	*/
+	register long sum = 0, checksum = 0;
+
+	while( count > 1 )  {
+		/*  This is the inner loop */
+		sum += * (unsigned short) p++;
+		count -= 2;
+	}
+
+	/*  Add left-over byte, if any */
+	if( count > 0 )
+		sum += * (unsigned char *) p;
+
+	/*  Fold 32-bit sum to 16 bits */
+	while (sum>>16)
+		sum = (sum & 0xffff) + (sum >> 16);
+
+	checksum = ~sum;
+	return checksum;
+   
 }
 
-int create_socket(struct ping_rts *rts, socket_st *sock, int family, int socktype, int protocol)
+static struct pkt prep_packet()
 {
-	sock->fd = socket(family, socktype, protocol);
-
-	if (sock->fd == -1) {
-		printf("err: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	sock->socktype = socktype;
-
-	return 0;
+	struct pkt p;
+	p.hdr.type = ICMP_ECHO;
+	p.msg = "test msg";
+	p.hdr.checksum = get_cksum(64, &p);
+	return p;
 }
 
-void enable_cap_raw(cap_value_t cap, cap_flag_value_t status) {
-	cap_t caps;
-	cap_flag_value_t is_raw;
-	int ret = -1;
-
-	caps = cap_get_proc();
-	cap_get_flag(caps, cap, CAP_PERMITTED, &is_raw);
-	printf("CAP_NET_RAW permitted? :%d\n", is_raw);
-	if (is_raw) {
-		ret = cap_set_flag(caps, CAP_EFFECTIVE, 1, &cap, status);
-	} else {
-		ret = status? -1: 0;
-	}
-
-	if (!ret){
-		cap_set_proc(caps);
-	}
-	cap_free(caps);
-
-	if (ret)
-		printf("error : %s\n", strerror(errno));
+static void send_ping(int sockfd, struct addrinfo *res)
+{
+	printf("here\n");
 }
 
-int main(int argc, char **argv) {
-	int fd, ret;
-	struct addrinfo *result;
-	char *target;
-	socket_st sock = {.fd = -1};
-	struct addrinfo hints = {
-		.ai_family = AF_INET,
-		.ai_protocol = IPPROTO_UDP,
-		.ai_socktype = SOCK_DGRAM,
-		.ai_flags = getaddrinfo_flags
-	};
-	static struct ping_rts rts = {
-		.interval = 1000,
-		.preload = 1,
-		.lingertime = MAXWAIT * 1000,
-		.confirm_flag = MSG_CONFIRM,
-		.tmin = LONG_MAX,
-		.pipesize = -1,
-		.datalen = DEFDATALEN,
-		.ident = -1,
-		.screen_width = INT_MAX,
-#ifdef HAVE_LIBCAP
-		.cap_raw = CAP_NET_RAW,
-		.cap_admin = CAP_NET_ADMIN,
-#endif
-		.pmtudisc = -1,
-		.source.sin_family = AF_INET,
-		.source6.sin6_family = AF_INET6,
-		.ni.query = -1,
-		.ni.subject_type = -1,
-	};
+int main(){
+	int sockfd, rc;
+	struct addrinfo hints, *res;
+	struct pkt p;
 
-	target = argv[1];
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	//hints.ai_protocol = IPPROTO_ICMP;
 
-	/* 1. Enable the CAP_NET_RAW capability  */
-	//enable_cap_raw(CAP_NET_RAW, 1);
+	rc = getaddrinfo("127.0.0.1", NULL, &hints, &res);
+	if (rc)
+		printf("getaddrinfo: %d\n", rc);
 
-	/* 2. Create a socket with IPPROTO_ICMP protocol  */
-	if (create_socket(&rts, &sock, AF_INET, SOCK_RAW, IPPROTO_ICMP)) {
-		printf("error : %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
+	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+	if (sockfd < 0) {
+		printf("socket creation failed: %d\n", sockfd);
+		exit(sockfd);
 	}
 
-	ret = getaddrinfo(target, NULL, &hints, &result);
-	if (ret)
-		printf("error : %s\n", strerror(errno));
+	p = prep_packet();
+	send_ping(sockfd, res);
 
-	ret = run(&rts, argc, argv, result, &sock);
-	close(fd);
+	// connect
+	// rc = connect(sockfd, res->ai_addr, res->ai_addrlen);
+	// if (rc)
+	// 	printf("connect failed : %d\n", rc);
+	// 	exit(rc);
 
 	return 0;
 }
