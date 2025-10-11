@@ -11,17 +11,20 @@ struct pkt {
 	char msg[64];
 };
 
-static long get_cksum(int count, struct pkg *p)
+static long get_cksum(int count, struct pkt *p)
 {
 	
 	/* Compute Internet Checksum for "count" bytes
 	*         beginning at location "addr".
 	*/
 	register long sum = 0, checksum = 0;
+	void *addr;
+	addr = &(p->msg);
 
 	while( count > 1 )  {
 		/*  This is the inner loop */
-		sum += * (unsigned short) p++;
+		sum += * ((unsigned short *) addr);
+		p++;
 		count -= 2;
 	}
 
@@ -42,14 +45,19 @@ static struct pkt prep_packet()
 {
 	struct pkt p;
 	p.hdr.type = ICMP_ECHO;
-	p.msg = "test msg";
+	p.hdr.code = 0;
+	memcpy(&(p.msg), "test msg", 8);
 	p.hdr.checksum = get_cksum(64, &p);
 	return p;
 }
 
-static void send_ping(int sockfd, struct addrinfo *res)
+static int send_ping(int sockfd, struct pkt *p, struct addrinfo *res)
 {
-	printf("here\n");
+	int rc;
+
+	rc = sendto(sockfd, &(p->hdr), 64, 0, res->ai_addr, res->ai_addrlen);
+
+	return rc;
 }
 
 int main(){
@@ -73,7 +81,10 @@ int main(){
 	}
 
 	p = prep_packet();
-	send_ping(sockfd, res);
+	rc = send_ping(sockfd, &p, res);
+	if (rc < 0) {
+		fprintf(stderr, "Packet could not be sent, error : %d\n", rc);
+	}
 
 	// connect
 	// rc = connect(sockfd, res->ai_addr, res->ai_addrlen);
