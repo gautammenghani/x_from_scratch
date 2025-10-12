@@ -51,26 +51,13 @@ static struct pkt prep_packet()
 	return p;
 }
 
-static int send_ping(int sockfd, struct pkt *p, struct addrinfo *res)
-{
-	return sendto(sockfd, &(p->hdr), 64, 0, res->ai_addr, res->ai_addrlen);
-}
-
-static int get_reply(int sockfd)
-{
-	int len;
-	struct msghdr *msg;
-	char rbuffer[128];
-	struct sockaddr_in r_addr;
-	int addr_len = sizeof(r_addr);
-
-	return recvfrom(sockfd, rbuffer, sizeof(rbuffer), 0, (struct sockaddr *)&r_addr, &addr_len);
-}
-
 int main(int argc, char **argv){
 	int sockfd, rc;
 	struct addrinfo hints, *res;
 	struct pkt p;
+	char rbuffer[128];
+	struct sockaddr_in r_addr;
+	int addr_len = sizeof(r_addr);
 
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
@@ -97,13 +84,13 @@ int main(int argc, char **argv){
 	p = prep_packet();
 	while (1) {
 		clock_gettime(CLOCK_MONOTONIC, &time_start);
-		rc = send_ping(sockfd, &p, res);
+		rc = sendto(sockfd, &(p.hdr), 64, 0, res->ai_addr, res->ai_addrlen);
 		if (rc < 0) {
 			fprintf(stderr, "Packet could not be sent, error : %d\n", rc);
 			exit(rc);
 		}
 
-		rc = get_reply(sockfd);
+		rc = recvfrom(sockfd, rbuffer, sizeof(rbuffer), 0, (struct sockaddr *)&r_addr, &addr_len);
 		if (rc < 0) {
 			fprintf(stderr, "Packet could not be received, error : %d\n", rc);
 			exit(rc);
