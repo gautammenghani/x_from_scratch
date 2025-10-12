@@ -5,6 +5,8 @@
 #include <string.h>
 #include <netdb.h>
 #include <linux/icmp.h>
+#include <time.h>
+#include <unistd.h>
 
 struct pkt {
 	struct icmphdr hdr;
@@ -13,7 +15,6 @@ struct pkt {
 
 static long get_cksum(int count, struct pkt *p)
 {
-	
 	/* Compute Internet Checksum for "count" bytes
 	*         beginning at location "addr".
 	*/
@@ -38,7 +39,6 @@ static long get_cksum(int count, struct pkt *p)
 
 	checksum = ~sum;
 	return checksum;
-   
 }
 
 static struct pkt prep_packet()
@@ -53,14 +53,21 @@ static struct pkt prep_packet()
 
 static int send_ping(int sockfd, struct pkt *p, struct addrinfo *res)
 {
-	int rc;
-
-	rc = sendto(sockfd, &(p->hdr), 64, 0, res->ai_addr, res->ai_addrlen);
-
-	return rc;
+	return sendto(sockfd, &(p->hdr), 64, 0, res->ai_addr, res->ai_addrlen);
 }
 
-int main(){
+static int get_reply(int sockfd)
+{
+	int len;
+	struct msghdr *msg;
+	char rbuffer[128];
+	struct sockaddr_in r_addr;
+	int addr_len = sizeof(r_addr);
+
+	return recvfrom(sockfd, rbuffer, sizeof(rbuffer), 0, (struct sockaddr *)&r_addr, &addr_len);
+}
+
+int main(int argc, char **argv){
 	int sockfd, rc;
 	struct addrinfo hints, *res;
 	struct pkt p;
@@ -68,11 +75,18 @@ int main(){
 	memset(&hints, 0, sizeof hints);
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_DGRAM;
-	//hints.ai_protocol = IPPROTO_ICMP;
+	struct timespec time_start, time_end;
 
-	rc = getaddrinfo("127.0.0.1", NULL, &hints, &res);
-	if (rc)
+	if (argc != 2) {
+		fprintf(stderr, "Target hostname/IP address not specified\n");
+		exit(-1);
+	}
+
+	rc = getaddrinfo(argv[1], NULL, &hints, &res);
+	if (rc) {
 		printf("getaddrinfo: %d\n", rc);
+		exit(rc);
+	}
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
 	if (sockfd < 0) {
@@ -81,16 +95,24 @@ int main(){
 	}
 
 	p = prep_packet();
-	rc = send_ping(sockfd, &p, res);
-	if (rc < 0) {
-		fprintf(stderr, "Packet could not be sent, error : %d\n", rc);
-	}
+	while (1) {
+		clock_gettime(CLOCK_MONOTONIC, &time_start);
+		rc = send_ping(sockfd, &p, res);
+		if (rc < 0) {
+			fprintf(stderr, "Packet could not be sent, error : %d\n", rc);
+			exit(rc);
+		}
 
-	// connect
-	// rc = connect(sockfd, res->ai_addr, res->ai_addrlen);
-	// if (rc)
-	// 	printf("connect failed : %d\n", rc);
-	// 	exit(rc);
+		rc = get_reply(sockfd);
+		if (rc < 0) {
+			fprintf(stderr, "Packet could not be received, error : %d\n", rc);
+			exit(rc);
+		}
+		clock_gettime(CLOCK_MONOTONIC, &time_end);
+		double timems = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
+		printf("Time elapsed : %.2f ms\n", timems);
+		sleep(1);
+	}
 
 	return 0;
 }
