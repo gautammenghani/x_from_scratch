@@ -5,10 +5,10 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-static int container_run(char **argv)
+static int container_run(int argc, char **argv)
 {
     char *cmnd = argv[2];
-    char *const args[] = {argv[3], NULL};
+    char *const args[] = {"echo", argv[3], NULL};
     char *const env[] = {NULL};
     int rc;
 
@@ -18,15 +18,12 @@ static int container_run(char **argv)
     if (pid > 0) {
         int status;
         pid_t killed_pid = wait(&status);
-        if (WIFEXITED(status)) 
+        if (killed_pid == -1) 
             printf("pid %d exited with %d\n", killed_pid, status);
 
     } else if (pid == 0) {
         //child
-
-        rc = execve(cmnd, args, env);
-        return rc;
-
+        execve(cmnd, args, env);
     } else {
         fprintf(stderr, "Fork failed\n");
         exit(errno);
@@ -45,7 +42,7 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(argv[1], "run") == 0) {
-        rc = container_run(argv);
+        rc = container_run(argc, argv);
         if (rc) {
             fprintf(stderr, "Failed : %s\n", strerror(rc));
         }
