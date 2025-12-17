@@ -1,2 +1,3 @@
 #!/bin/bash
-./container run /bin/echo hi
+./container run -i ubuntu -c /bin/ls /proc
+umount ubuntu/*

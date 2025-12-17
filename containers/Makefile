@@ -1,2 +1,2 @@
 default:
-	gcc container.c -o container
+	gcc container.c -g -o container
